@@ -139,6 +139,7 @@ char*    store_character(char* s, uint64_t i, uint64_t c);
 
 uint64_t is_letter(uint64_t c);
 uint64_t is_digit(uint64_t c);
+uint64_t is_hex(uint64_t c);
 
 char*    string_alloc(uint64_t l);
 uint64_t string_length(char* s);
@@ -148,6 +149,7 @@ uint64_t string_compare(char* s, char* t);
 
 uint64_t atoi(char* s);
 char*    itoa(uint64_t n, char* s, uint64_t b, uint64_t d, uint64_t a);
+uint64_t atoh(char* s);
 
 uint64_t fixed_point_ratio(uint64_t a, uint64_t b, uint64_t f);
 uint64_t fixed_point_percentage(uint64_t r, uint64_t f);
@@ -2731,6 +2733,23 @@ uint64_t is_digit(uint64_t c) {
     return 0;
 }
 
+uint64_t is_hex(uint64_t c) {
+  // ASCII codes for digits are in a contiguous interval
+	if (c >= 'A')
+		if (c <= 'F')
+			return 1;
+		else
+			return 0;
+	else
+		if (c >= '0')
+			if (c <= '9')
+				return 1;
+			else
+				return 0;
+		else
+			return 0;
+}
+
 char* string_alloc(uint64_t l) {
   // allocates zeroed memory for a string of l characters
   // plus a null terminator aligned to word size
@@ -2853,6 +2872,69 @@ uint64_t atoi(char* s) {
         n = n * 10 + c;
       else {
         // s contains a decimal number larger than UINT_MAX
+        printf("%s: cannot convert out-of-bound number %s\n", selfie_name, s);
+
+        exit(EXITCODE_SCANNERERROR);
+      }
+    else {
+      // s contains a decimal number larger than UINT_MAX
+      printf("%s: cannot convert out-of-bound number %s\n", selfie_name, s);
+
+      exit(EXITCODE_SCANNERERROR);
+    }
+
+    // go to the next digit
+    i = i + 1;
+
+    // load character (one byte) at index i in s from memory requires
+    // bit shifting since memory access can only be done at word granularity
+    c = load_character(s, i);
+  }
+
+  return n;
+}
+
+uint64_t atoh(char* s) {
+  uint64_t i;
+  uint64_t n;
+  uint64_t c;
+
+  // the conversion of the ASCII string in s to its
+  // numerical value n begins with the leftmost digit in s
+  i = 0;
+
+  // and the numerical value 0 for n
+  n = 0;
+
+  // load character (one byte) at index i in s from memory requires
+  // bit shifting since memory access can only be done at word granularity
+  c = load_character(s, i);
+
+  // loop until s is terminated
+  while (c != 0) {
+    // the numerical value of ASCII-encoded hexadecimal digits
+    // is offset by the ASCII code of '0' (which is 48) or '7' (55) if c > 'A'
+	if (c >= 'A')
+		c = c - '7';
+	else
+		c = c - '0';
+
+    if (c > 15) {
+      printf("%s: cannot convert non-decimal number %s\n", selfie_name, s);
+
+      exit(EXITCODE_SCANNERERROR);
+    }
+
+    // assert: s contains a hexadecimal number
+
+    // use base 16 but detect wrap around
+    if (n < UINT_MAX / 16)
+      n = n * 16 + c;
+    else if (n == UINT_MAX / 16)
+      if (c <= UINT_MAX % 16)
+        n = n * 16 + c;
+      else {
+        // s contains a hexadecimal number larger than UINT_MAX
         printf("%s: cannot convert out-of-bound number %s\n", selfie_name, s);
 
         exit(EXITCODE_SCANNERERROR);
@@ -3709,7 +3791,35 @@ void get_symbol() {
         integer = string_alloc(MAX_INTEGER_LENGTH);
 
         i = 0;
+		
+		if (character == '0')
+			get_character();
+		if (character == 'x') {
+			get_character();
+			
+			while (is_hex(character)) {
+				if (i >= MAX_INTEGER_LENGTH) {
+					if (integer_is_signed)
+						syntax_error_message("signed integer out of bound");
+					else
+						syntax_error_message("integer out of bound");
 
+					exit(EXITCODE_SCANNERERROR);
+				}
+
+				store_character(integer, i, character);
+
+				i = i + 1;
+
+				get_character();
+			}
+			
+			store_character(integer, i, 0); // null-terminated string
+
+			literal = atoh(integer);
+		}
+		
+		else {
         while (is_digit(character)) {
           if (i >= MAX_INTEGER_LENGTH) {
             if (integer_is_signed)
@@ -3730,6 +3840,7 @@ void get_symbol() {
         store_character(integer, i, 0); // null-terminated string
 
         literal = atoi(integer);
+		}
 
         if (integer_is_signed)
           if (literal > INT64_MIN) {
@@ -11836,6 +11947,8 @@ int main(int argc, char** argv) {
   init_library();
   init_system();
   init_target();
+  
+  printf("%s: This is Mikolaj Luzak\'s Selfie!\n", selfie_name);
 
   exit_code = selfie(0);
 

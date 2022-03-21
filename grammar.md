@@ -15,7 +15,7 @@ C\* Symbols: `integer_literal`, `character_literal`, `string_literal`, `identifi
 with:
 
 ```
-integer_literal   = digit { digit } .
+integer_literal   = ( digit { digit } ) | ( "0" "x" hex_digit { hex_digit } ) .
 
 character_literal = "'" printable_character "'" .
 
@@ -27,9 +27,11 @@ identifier        = letter { letter | digit | "_" } .
 and:
 
 ```
-digit  = "0" | ... | "9" .
+hex_digit 	= "0" | ... | "9" | "A" | ... | "F" .
 
-letter = "a" | ... | "z" | "A" | ... | "Z" .
+digit  		= "0" | ... | "9" .
+
+letter 		= "a" | ... | "z" | "A" | ... | "Z" .
 ```
 
 C\* Grammar:

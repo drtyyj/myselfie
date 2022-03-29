@@ -5109,6 +5109,7 @@ uint64_t compile_shift_expression() {
 	uint64_t operator_symbol;
 	uint64_t rtype;
 	uint64_t i;
+	i = 2; //platzhalter
 	
 	ltype = compile_simple_expression();
 	
@@ -5124,7 +5125,7 @@ uint64_t compile_shift_expression() {
 		if (ltype != UINT64_T)
 			type_warning(ltype, rtype);
 		
-		emit_store(i, 0, current_temporary());
+		//emit_store(i, 0, current_temporary());
 		if (operator_symbol == SYM_SRL) {
 			emit_addi(current_temporary(), REG_ZR, 2);
 			while (i > 0) { 

@@ -496,7 +496,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_CONST + 1) * SIZEOFUINT64STAR);
+  SYMBOLS = smalloc((SYM_SRL + 1) * SIZEOFUINT64STAR);
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -5109,7 +5109,6 @@ uint64_t compile_shift_expression() {
 	uint64_t operator_symbol;
 	uint64_t rtype;
 	uint64_t i;
-	i = 2; //platzhalter
 	
 	ltype = compile_simple_expression();
 	
@@ -5125,20 +5124,20 @@ uint64_t compile_shift_expression() {
 		if (ltype != UINT64_T)
 			type_warning(ltype, rtype);
 		
-		//emit_store(i, 0, current_temporary());
+		emit_store(i, 0, current_temporary());
 		if (operator_symbol == SYM_SRL) {
 			emit_addi(current_temporary(), REG_ZR, 2);
-			while (i > 0) { 
+			while (i > 0) {
 				emit_divu(previous_temporary(), previous_temporary(), current_temporary());
 				i = i - 1;
 			}
 		} else if (operator_symbol == SYM_SLL) {
+			emit_addi(current_temporary(), REG_ZR, 2);
 			while (i > 0) {
 				emit_multiply_by(current_temporary(), 2);
 				i = i - 1;
 			}
 		}
-		
 		tfree(1);
 	}
 	

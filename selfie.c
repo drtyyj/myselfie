@@ -450,6 +450,8 @@ uint64_t SYM_LEQ          = 25; // <=
 uint64_t SYM_GT           = 26; // >
 uint64_t SYM_GEQ          = 27; // >=
 uint64_t SYM_ELLIPSIS     = 28; // ...
+uint64_t SYM_SLL		  = 33; // <<
+uint64_t SYM_SRL		  = 34; // >>
 
 // symbols for bootstrapping
 
@@ -494,7 +496,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_CONST + 1) * SIZEOFUINT64STAR);
+  SYMBOLS = smalloc((SYM_SRL + 1) * SIZEOFUINT64STAR);
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -525,6 +527,8 @@ void init_scanner () {
   *(SYMBOLS + SYM_GT)           = (uint64_t) ">";
   *(SYMBOLS + SYM_GEQ)          = (uint64_t) ">=";
   *(SYMBOLS + SYM_ELLIPSIS)     = (uint64_t) "...";
+  *(SYMBOLS + SYM_SRL)			= (uint64_t) ">>";
+  *(SYMBOLS + SYM_SLL)			= (uint64_t) "<<";
 
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
@@ -667,6 +671,7 @@ uint64_t is_mult_or_div_or_rem();
 uint64_t is_plus_or_minus();
 uint64_t is_comparison();
 uint64_t is_possibly_parameter(uint64_t is_already_variadic);
+uint64_t is_shift();
 
 uint64_t look_for_factor();
 uint64_t look_for_statement();
@@ -703,6 +708,7 @@ uint64_t  compile_call(char* procedure);
 uint64_t  compile_factor();
 uint64_t  compile_term();
 uint64_t  compile_simple_expression();
+uint64_t  compile_shift_expression();
 uint64_t  compile_expression();
 void      compile_while();
 void      compile_if();
@@ -3987,14 +3993,16 @@ void get_symbol() {
 
       } else if (character == CHAR_LT) {
         get_character();
-
         if (character == CHAR_EQUAL) {
           get_character();
 
           symbol = SYM_LEQ;
-        } else
-          symbol = SYM_LT;
-
+        } else if (character == CHAR_LT){
+			  get_character();
+				
+			  symbol = SYM_SLL;
+			} else
+			  symbol = SYM_LT;
       } else if (character == CHAR_GT) {
         get_character();
 
@@ -4002,9 +4010,13 @@ void get_symbol() {
           get_character();
 
           symbol = SYM_GEQ;
-        } else
-          symbol = SYM_GT;
-
+        } 
+		else if (character == CHAR_GT) {
+			  get_character();
+			
+			  symbol = SYM_SRL;
+			} else
+			  symbol = SYM_GT;
       } else if (character == CHAR_DOT) {
         get_character();
 
@@ -4287,6 +4299,15 @@ uint64_t is_possibly_parameter(uint64_t is_already_variadic) {
       return 1;
 
   return 0;
+}
+
+uint64_t is_shift() {
+	if (symbol == SYM_SRL)
+		return 1;
+	else if (symbol == SYM_SLL)
+		return 1;
+	else
+		return 0;
 }
 
 uint64_t look_for_factor() {
@@ -5083,6 +5104,47 @@ uint64_t compile_simple_expression() {
   return ltype;
 }
 
+uint64_t compile_shift_expression() {
+	uint64_t ltype;
+	uint64_t operator_symbol;
+	uint64_t rtype;
+	uint64_t i;
+	i = 1;
+	
+	ltype = compile_simple_expression();
+	
+	while (is_shift()) {
+		operator_symbol = symbol;
+		
+		get_symbol();
+		
+		rtype = compile_simple_expression();
+		
+		if (ltype != rtype)
+			type_warning(ltype, rtype);
+		if (ltype != UINT64_T)
+			type_warning(ltype, rtype);
+		
+		//emit_store(i, 0, current_temporary());
+		if (operator_symbol == SYM_SRL) {
+			//emit_addi(current_temporary(), REG_ZR, 2);
+			while (i > 0) {
+				//emit_divu(previous_temporary(), previous_temporary(), current_temporary());
+				i = i - 1;
+			}
+		} else if (operator_symbol == SYM_SLL) {
+			//emit_addi(current_temporary(), REG_ZR, 2);
+			while (i > 0) {
+				//emit_multiply_by(current_temporary(), 2);
+				i = i - 1;
+			}
+		}
+		tfree(1);
+	}
+	
+	return ltype;
+}
+
 uint64_t compile_expression() {
   uint64_t ltype;
   uint64_t operator_symbol;
@@ -5090,7 +5152,7 @@ uint64_t compile_expression() {
 
   // assert: n = allocated_temporaries
 
-  ltype = compile_simple_expression();
+  ltype = compile_shift_expression();
 
   // assert: allocated_temporaries == n + 1
 
@@ -5100,7 +5162,7 @@ uint64_t compile_expression() {
 
     get_symbol();
 
-    rtype = compile_simple_expression();
+    rtype = compile_shift_expression();
 
     // assert: allocated_temporaries == n + 2
 

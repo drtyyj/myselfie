@@ -1697,17 +1697,17 @@ uint64_t print_code_context_for_instruction(uint64_t address);
 uint64_t print_lui();
 void     print_lui_before();
 void     print_lui_after();
-void     record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+void     record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
 void     do_lui();
 void     undo_lui_addi_add_sub_mul_divu_remu_sltu_load_jal_jalr();
 
 uint64_t print_addi();
 void     print_addi_before();
-void     print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+void     print_addi_add_sub_mul_divu_remu_sltu_after();
 void     do_addi();
 
-uint64_t print_add_sub_mul_divu_remu_sltu_sll_srl();
-void     print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+uint64_t print_add_sub_mul_divu_remu_sltu();
+void     print_add_sub_mul_divu_remu_sltu_before();
 
 void do_add();
 void do_sub();
@@ -9342,7 +9342,7 @@ void print_lui_after() {
   print_register_hexadecimal(rd);
 }
 
-void record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr() {
+void record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr() {
   record_state(*(registers + rd));
 }
 
@@ -9393,7 +9393,7 @@ void print_addi_before() {
   print_register_value(rd);
 }
 
-void print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after() {
+void print_addi_add_sub_mul_divu_remu_sltu_after() {
   print(" -> ");
   print_register_value(rd);
 }
@@ -9423,12 +9423,12 @@ void do_addi() {
   ic_addi = ic_addi + 1;
 }
 
-uint64_t print_add_sub_mul_divu_remu_sltu_sll_srl() {
+uint64_t print_add_sub_mul_divu_remu_sltu() {
   return print_code_context_for_instruction(pc)
     + dprintf(output_fd, "%s %s,%s,%s", get_mnemonic(is), get_register_name(rd), get_register_name(rs1), get_register_name(rs2));
 }
 
-void print_add_sub_mul_divu_remu_sltu_sll_srl_before() {
+void print_add_sub_mul_divu_remu_sltu_before() {
   print(": ");
   print_register_value(rs1);
   print(",");
@@ -10118,21 +10118,21 @@ uint64_t print_instruction() {
   else if (is == STORE)
     return print_store();
   else if (is == ADD)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == SUB)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == MUL)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == DIVU)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == SLL)
-	return print_add_sub_mul_divu_remu_sltu_sll_srl();
+	return print_add_sub_mul_divu_remu_sltu();
   else if (is == SRL)
-	return print_add_sub_mul_divu_remu_sltu_sll_srl();
+	return print_add_sub_mul_divu_remu_sltu();
   else if (is == REMU)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == SLTU)
-    return print_add_sub_mul_divu_remu_sltu_sll_srl();
+    return print_add_sub_mul_divu_remu_sltu();
   else if (is == BEQ)
     return print_beq();
   else if (is == JAL)
@@ -10493,7 +10493,7 @@ void execute() {
 void execute_record() {
   // assert: 1 <= is <= number of RISC-U instructions
   if (is == ADDI) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_addi();
   } else if (is == LOAD) {
     record_load();
@@ -10502,40 +10502,40 @@ void execute_record() {
     record_store();
     do_store();
   } else if (is == ADD) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_add();
   } else if (is == SUB) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_sub();
   } else if (is == MUL) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_mul();
   } else if (is == DIVU) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_divu();
   } else if (is == REMU) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_remu();
   } else if (is == SLTU) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_sltu();
   } else if (is == SLL) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_sll();
   } else if (is == SRL) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_srl();
   } else if (is == BEQ) {
     record_beq();
     do_beq();
   } else if (is == JAL) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_jal();
   } else if (is == JALR) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_jalr();
   } else if (is == LUI) {
-    record_lui_addi_add_sub_mul_divu_sll_srl_remu_sltu_jal_jalr();
+    record_lui_addi_add_sub_mul_divu_remu_sltu_jal_jalr();
     do_lui();
   } else if (is == ECALL) {
     record_ecall();
@@ -10563,7 +10563,7 @@ void execute_debug() {
   if (is == ADDI) {
     print_addi_before();
     do_addi();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == LOAD) {
     print_load_before();
     print_load_after(do_load());
@@ -10571,29 +10571,29 @@ void execute_debug() {
     print_store_before();
     print_store_after(do_store());
   } else if (is == ADD) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_add();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == SUB) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_sub();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == MUL) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_mul();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == DIVU) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_divu();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == REMU) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_remu();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == SLTU) {
-    print_add_sub_mul_divu_remu_sltu_sll_srl_before();
+    print_add_sub_mul_divu_remu_sltu_before();
     do_sltu();
-    print_addi_add_sub_mul_divu_remu_sltu_sll_srl_after();
+    print_addi_add_sub_mul_divu_remu_sltu_after();
   } else if (is == BEQ) {
     print_beq_before();
     do_beq();

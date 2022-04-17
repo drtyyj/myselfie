@@ -5145,7 +5145,6 @@ uint64_t compile_shift_expression() {
 		
 		if (operator_symbol == SYM_SRL) {
 			emit_srl(previous_temporary(), previous_temporary(), current_temporary());
-			
 		} else if (operator_symbol == SYM_SLL) {
 			emit_sll(previous_temporary(), previous_temporary(), current_temporary());
 		}

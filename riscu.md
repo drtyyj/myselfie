@@ -52,6 +52,14 @@ The parameter `imm` denotes a signed integer value represented by a fixed number
 
 `sltu rd,rs1,rs2`: `if (rs1 < rs2) { rd = 1 } else { rd = 0 } pc = pc + 4` where the values of `rs1` and `rs2` are interpreted as unsigned integers.
 
+#### Logic
+
+`and rd,rs1,rs2`: `rd = rs1 & rs2; pc = pc + 4`
+
+`or rd,rs1,rs2`:  `rd = rs1 | rs2; pc = pc + 4`
+
+`xori rd,rs1,imm`: `rd = ~(rs1 & imm) & (rs1 | imm)`
+
 #### Control
 
 `beq rs1,rs2,imm`: `if (rs1 == rs2) { pc = pc + imm } else { pc = pc + 4 }` with `-2^12 <= imm < 2^12` and `imm % 2 == 0`

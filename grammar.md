@@ -10,7 +10,7 @@ C\* is a tiny subset of the programming language C. C\* features global variable
 
 C\* Keywords: `uint64_t`, `void`, `if`, `else`, `while`, `return`
 
-C\* Symbols: `integer_literal`, `character_literal`, `string_literal`, `identifier`, `,`, `;`, `(`, `)`, `{`, `}`, `+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `...`, `<<`, `>>`
+C\* Symbols: `integer_literal`, `character_literal`, `string_literal`, `identifier`, `,`, `;`, `(`, `)`, `{`, `}`, `+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `...`, `<<`, `>>`, `&`, `|`, `~`
 
 with:
 
@@ -55,7 +55,11 @@ statement         = ( [ "*" ] identifier | "*" "(" expression ")" ) "=" expressi
 
 call              = identifier "(" [ expression { "," expression } ] ")" .
 
-expression        = shift_expression
+expression 		  = and_expression { "|"  and_expression } .
+
+and_expression	  = comp_expression  { "&" comp_expression } .
+
+comp_expression   = shift_expression
                     [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) shift_expression ] .
 					
 shift_expression  = simple_expression { ( "<<" | ">>" ) simple_expression } .
@@ -64,7 +68,7 @@ simple_expression = term { ( "+" | "-" ) term } .
 
 term              = factor { ( "*" | "/" | "%" ) factor } .
 
-factor            = [ cast ] [ "-" ] [ "*" ]
+factor            = [ cast ] [ "~" ] [ "-" ] [ "*" ]
                     ( integer_literal | character_literal | string_literal |
                       identifier | call | "(" expression ")" ) .
 

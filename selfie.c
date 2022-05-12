@@ -262,6 +262,8 @@ uint64_t CHAR_DOT          = '.';
 uint64_t CHAR_AMPERSAND	   = '&';
 uint64_t CHAR_VERTIBAR	   = '|';
 uint64_t CHAR_TILDE		   = '~';
+uint64_t CHAR_LBRACKET	   = '[';
+uint64_t CHAR_RBRACKET	   = ']';
 
 uint64_t* character_buffer; // buffer for reading and writing characters
 
@@ -458,6 +460,8 @@ uint64_t SYM_SRL		  = 34; // >>
 uint64_t SYM_AND		  = 35; // &
 uint64_t SYM_OR			  = 36; // |
 uint64_t SYM_NOT		  = 37; // ~
+uint64_t SYM_LBRACKET	  = 38; // [
+uint64_t SYM_RBRACKET	  = 39; // ]
 
 // symbols for bootstrapping
 
@@ -502,7 +506,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_NOT + 1) * SIZEOFUINT64STAR);
+  SYMBOLS = smalloc((SYM_RBRACKET + 1) * SIZEOFUINT64STAR);
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -538,6 +542,8 @@ void init_scanner () {
   *(SYMBOLS + SYM_AND)			= (uint64_t) "&";
   *(SYMBOLS + SYM_OR)			= (uint64_t) "|";
   *(SYMBOLS + SYM_NOT)			= (uint64_t) "~";
+  *(SYMBOLS + SYM_LBRACKET)		= (uint64_t) "[";
+  *(SYMBOLS + SYM_RBRACKET)		= (uint64_t) "]";
 
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
@@ -586,14 +592,15 @@ uint64_t report_undefined_procedures();
 // | 1 | string  | identifier string, big integer as string, string literal
 // | 2 | line#   | source line number
 // | 3 | class   | VARIABLE, BIGINT, STRING, PROCEDURE
-// | 4 | type    | UINT64_T, UINT64STAR_T, VOID_T
+// | 4 | type    | UINT64_T, UINT64STAR_T, VOID_T, ARRAY_T
 // | 5 | value   | VARIABLE: initial value
-// | 6 | address | VARIABLE, BIGINT, STRING: offset, PROCEDURE: address
+// | 6 | address | VARIABLE, BIGINT, STRING, ARRAY_T: offset, PROCEDURE: address
 // | 7 | scope   | REG_GP (global), REG_S0 (local)
+// | 8 | length  | ARRAY_T: length
 // +---+---------+
 
 uint64_t* allocate_symbol_table_entry() {
-  return smalloc(2 * SIZEOFUINT64STAR + 6 * SIZEOFUINT64);
+  return smalloc(2 * SIZEOFUINT64STAR + 7 * SIZEOFUINT64);
 }
 
 uint64_t* get_next_entry(uint64_t* entry)  { return (uint64_t*) *entry; }
@@ -604,6 +611,7 @@ uint64_t  get_type(uint64_t* entry)        { return             *(entry + 4); }
 uint64_t  get_value(uint64_t* entry)       { return             *(entry + 5); }
 uint64_t  get_address(uint64_t* entry)     { return             *(entry + 6); }
 uint64_t  get_scope(uint64_t* entry)       { return             *(entry + 7); }
+uint64_t  get_length(uint64_t* entry)	   { return				*(entry + 8); }
 
 void set_next_entry(uint64_t* entry, uint64_t* next) { *entry       = (uint64_t) next; }
 void set_string(uint64_t* entry, char* identifier)   { *(entry + 1) = (uint64_t) identifier; }
@@ -613,6 +621,7 @@ void set_type(uint64_t* entry, uint64_t type)        { *(entry + 4) = type; }
 void set_value(uint64_t* entry, uint64_t value)      { *(entry + 5) = value; }
 void set_address(uint64_t* entry, uint64_t address)  { *(entry + 6) = address; }
 void set_scope(uint64_t* entry, uint64_t scope)      { *(entry + 7) = scope; }
+void set_length(uint64_t* entry, uint64_t length)    { *(entry + 8) = length; }
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
@@ -628,6 +637,7 @@ uint64_t UINT64_T     = 1;
 uint64_t UINT64STAR_T = 2;
 uint64_t VOID_T       = 3;
 uint64_t UNDECLARED_T = 4;
+uint64_t ARRAY_T	  = 5;
 
 // symbol tables
 uint64_t GLOBAL_TABLE  = 1;
@@ -706,6 +716,7 @@ void      load_upper_base_address(uint64_t* entry);
 uint64_t  load_variable_or_big_int(char* variable, uint64_t class);
 void      load_integer(uint64_t value);
 void      load_string(char* string);
+uint64_t  load_array_variable(char* array_variable, uint64_t class, uint64_t index);
 
 uint64_t procedure_call(uint64_t* entry, char* procedure, uint64_t number_of_parameters);
 
@@ -730,6 +741,7 @@ uint64_t* compile_variable(uint64_t offset);
 uint64_t  compile_initialization(uint64_t type);
 void      compile_procedure(char* procedure, uint64_t type);
 void      compile_cstar();
+uint64_t  compile_array_selector();
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -4009,7 +4021,17 @@ void get_symbol() {
 
         symbol = SYM_RBRACE;
 
-      } else if (character == CHAR_PLUS) {
+      } else if (character == CHAR_LBRACKET) {
+		get_character();
+		  
+		symbol = SYM_LBRACKET;
+	  
+	  } else if (character == CHAR_RBRACKET) {
+		get_character();
+		  
+		symbol = SYM_RBRACKET;
+	  
+	  } else if (character == CHAR_PLUS) {
         get_character();
 
         symbol = SYM_PLUS;
@@ -4704,6 +4726,20 @@ void load_string(char* string) {
   // assert: allocated_temporaries == n + 1
 }
 
+uint64_t load_array_variable(char* variable_name, uint64_t class, uint64_t offset){
+	 uint64_t* entry;
+	
+	 entry = get_scoped_symbol_table_entry(variable_name, class);
+	 
+	 talloc();
+	 
+	 load_upper_base_address(entry);
+
+     emit_load(current_temporary(), current_temporary(), sign_extend(get_bits(offset, 0, 12), 12));
+
+	 return UINT64_T;
+}
+
 uint64_t procedure_call(uint64_t* entry, char* procedure, uint64_t number_of_parameters) {
   uint64_t type;
 
@@ -4908,6 +4944,7 @@ uint64_t compile_factor() {
   uint64_t dereference;
   uint64_t bitwise_not;
   char* variable_or_procedure_name;
+  uint64_t length;
 
   // assert: n = allocated_temporaries
 
@@ -4999,9 +5036,12 @@ uint64_t compile_factor() {
       // reset return register to initial return value
       // for missing return expressions
       emit_addi(REG_A0, REG_ZR, 0);
-    } else
-      // variable access: identifier
-      type = load_variable_or_big_int(variable_or_procedure_name, VARIABLE);
+	} else if (symbol == SYM_LBRACKET) {
+		length = compile_array_selector();
+		type = load_array_variable(variable_or_procedure_name, VARIABLE, length);
+	} else
+	  // variable access: identifier
+	  type = load_variable_or_big_int(variable_or_procedure_name, VARIABLE);
 
   // integer literal?
   } else if (symbol == SYM_INTEGER) {
@@ -5555,6 +5595,8 @@ void compile_statement() {
   char* variable_or_procedure_name;
   uint64_t* entry;
   uint64_t offset;
+  uint64_t array_offset;
+  uint64_t brackets_found;
 
   // assert: allocated_temporaries == 0
 
@@ -5626,23 +5668,32 @@ void compile_statement() {
   // variable "=" expression | call
   else if (symbol == SYM_IDENTIFIER) {
     variable_or_procedure_name = identifier;
-
-    get_symbol();
-
+	
+	get_symbol();
+	
+	if (symbol == SYM_LBRACKET){
+		array_offset = compile_array_selector();
+		brackets_found = 1;
+	}
+	else{
+		array_offset = 0;
+		brackets_found = 0;
+	}
+		
     // procedure call
     if (symbol == SYM_LPARENTHESIS) {
-      get_symbol();
+	  get_symbol();
 
-      compile_call(variable_or_procedure_name);
+	  compile_call(variable_or_procedure_name);
 
-      // reset return register to initial return value
-      // for missing return expressions
-      emit_addi(REG_A0, REG_ZR, 0);
+	  // reset return register to initial return value
+	  // for missing return expressions
+	  emit_addi(REG_A0, REG_ZR, 0);
 
-      if (symbol == SYM_SEMICOLON)
-        get_symbol();
-      else
-        syntax_error_symbol(SYM_SEMICOLON);
+	  if (symbol == SYM_SEMICOLON)
+	    get_symbol();
+	  else
+		syntax_error_symbol(SYM_SEMICOLON);
 
     // variable "=" expression
     } else if (symbol == SYM_ASSIGN) {
@@ -5650,6 +5701,9 @@ void compile_statement() {
 
       ltype = get_type(entry);
 
+	  if (brackets_found)
+		  ltype = UINT64_T;
+	  
       get_symbol();
 
       rtype = compile_expression();
@@ -5660,13 +5714,13 @@ void compile_statement() {
       offset = get_address(entry);
 
       if (is_signed_integer(offset, 12)) {
-        emit_store(get_scope(entry), offset, current_temporary());
+        emit_store(get_scope(entry), offset + array_offset, current_temporary());
 
         tfree(1);
       } else {
         load_upper_base_address(entry);
 
-        emit_store(current_temporary(), sign_extend(get_bits(offset, 0, 12), 12), previous_temporary());
+        emit_store(current_temporary(), sign_extend(get_bits(offset + array_offset, 0, 12), 12), previous_temporary());
 
         tfree(2);
       }
@@ -5741,6 +5795,7 @@ uint64_t compile_type() {
 uint64_t* compile_variable(uint64_t offset) {
   uint64_t type;
   uint64_t* entry;
+  uint64_t length;
 
   type = compile_type();
 
@@ -5748,7 +5803,14 @@ uint64_t* compile_variable(uint64_t offset) {
     // TODO: check if identifier has already been declared
     entry = create_symbol_table_entry(LOCAL_TABLE, identifier, line_number, VARIABLE, type, 0, offset);
 
-    get_symbol();
+	get_symbol();
+	
+	if (symbol == SYM_LBRACKET) {
+		set_type(entry, ARRAY_T);
+		length = compile_array_selector();
+		set_length(entry, length);
+		set_address(entry, offset - length);
+	}
   } else {
     syntax_error_symbol(SYM_IDENTIFIER);
 
@@ -5999,6 +6061,7 @@ void compile_cstar() {
   uint64_t current_line_number;
   uint64_t initial_value;
   uint64_t* entry;
+  uint64_t length;
 
   while (symbol != SYM_EOF) {
     while (look_for_type()) {
@@ -6044,7 +6107,15 @@ void compile_cstar() {
           // procedure declaration or definition
           compile_procedure(variable_or_procedure_name, type);
         else {
+		  
           current_line_number = line_number;
+		  
+		  if (symbol == SYM_LBRACKET) {
+			type = ARRAY_T;
+			length = compile_array_selector();
+		  }
+		  else
+			length = 1;
 
           if (symbol == SYM_SEMICOLON) {
             // type identifier ";" ...
@@ -6053,18 +6124,25 @@ void compile_cstar() {
 
             // uninitialized global variables are initialized to 0
             initial_value = 0;
-          } else
+          } else if(type != ARRAY_T)
             // type identifier "=" ...
             // global variable definition
             initial_value = compile_initialization(type);
+			else
+				initial_value = 0;
 
           entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
 
           if (entry == (uint64_t*) 0) {
             // allocate memory for global variable in data segment
-            data_size = data_size + WORDSIZE;
+            data_size = data_size + length * WORDSIZE;
 
             create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, VARIABLE, type, initial_value, -data_size);
+			
+			if (type == ARRAY_T){
+				entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
+				set_length(entry, length);
+			}
           } else {
             // global variable already declared or defined
             print_line_number("warning", current_line_number);
@@ -6075,6 +6153,25 @@ void compile_cstar() {
         syntax_error_symbol(SYM_IDENTIFIER);
     }
   }
+}
+
+uint64_t compile_array_selector() {
+	uint64_t value;
+	
+	get_symbol();
+	
+	if (symbol != SYM_INTEGER) {
+		syntax_error_unexpected();
+		exit(EXITCODE_PARSERERROR);
+	}
+	value = literal;
+	get_symbol();
+	if (symbol != SYM_RBRACKET) {
+		syntax_error_unexpected();
+		exit(EXITCODE_PARSERERROR);
+	}
+	get_symbol();
+	return value;
 }
 
 // -----------------------------------------------------------------

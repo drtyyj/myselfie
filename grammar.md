@@ -10,7 +10,7 @@ C\* is a tiny subset of the programming language C. C\* features global variable
 
 C\* Keywords: `uint64_t`, `void`, `if`, `else`, `while`, `return`
 
-C\* Symbols: `integer_literal`, `character_literal`, `string_literal`, `identifier`, `,`, `;`, `(`, `)`, `{`, `}`, `+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `...`, `<<`, `>>`, `&`, `|`, `~`
+C\* Symbols: `integer_literal`, `character_literal`, `string_literal`, `identifier`, `array_identifier` `,`, `;`, `(`, `)`, `{`, `}`, `+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `...`, `<<`, `>>`, `&`, `|`, `~`
 
 with:
 
@@ -22,6 +22,8 @@ character_literal = "'" printable_character "'" .
 string_literal    = """ { printable_character } """ .
 
 identifier        = letter { letter | digit | "_" } .
+
+array_identifier  = letter { letter | digit | "_" } "[" identifier | integer_literal | shift_expression "]" .
 ```
 
 and:
@@ -37,7 +39,7 @@ letter 		= "a" | ... | "z" | "A" | ... | "Z" .
 C\* Grammar:
 
 ```
-cstar             = { type identifier
+cstar             = { type ( identifier | array_identifier )
                       [ "=" [ cast ] [ "-" ] ( integer_literal | character_literal ) ] ";" |
                     ( "void" | type ) identifier procedure } .
 
@@ -48,9 +50,9 @@ cast              = "(" type ")" .
 procedure         = "(" [ variable { "," variable } [ "," "..." ] ] ")" ( ";" |
                     "{" { variable ";" } { statement } "}" ) .
 
-variable          = type identifier .
+variable          = type ( identifier | array_identifier ) .
 
-statement         = ( [ "*" ] identifier | "*" "(" expression ")" ) "=" expression ";" |
+statement         = ( [ "*" ] identifier | array_identifier | "*" "(" expression ")" ) "=" expression ";" |
                     call ";" | while | if | return ";" .
 
 call              = identifier "(" [ expression { "," expression } ] ")" .
@@ -70,7 +72,7 @@ term              = factor { ( "*" | "/" | "%" ) factor } .
 
 factor            = [ cast ] [ "~" ] [ "-" ] [ "*" ]
                     ( integer_literal | character_literal | string_literal |
-                      identifier | call | "(" expression ")" ) .
+                      identifier | array_identifier | call | "(" expression ")" ) .
 
 while             = "while" "(" expression ")"
                       ( statement | "{" { statement } "}" ) .

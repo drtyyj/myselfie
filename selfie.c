@@ -577,7 +577,6 @@ void reset_symbol_tables();
 uint64_t hash(uint64_t* key);
 
 uint64_t* create_symbol_table_entry(uint64_t which, char* string, uint64_t line, uint64_t class, uint64_t type, uint64_t value, uint64_t address);
-uint64_t* create_symbol_table_dimension(uint64_t* entry, uint64_t size);
 uint64_t* create_dimension(uint64_t size);
 
 uint64_t* search_symbol_table(uint64_t* entry, char* string, uint64_t class);
@@ -4236,22 +4235,6 @@ uint64_t* create_symbol_table_entry(uint64_t which_table, char* string, uint64_t
   }
 
   return new_entry;
-}
-
-uint64_t* create_symbol_table_dimension(uint64_t* entry, uint64_t size) {
-	uint64_t* last_dim;
-	uint64_t* new_dim_entry;
-	
-	new_dim_entry = allocate_symbol_table_dimension();
-	last_dim = get_dimension(entry);
-	
-	while (get_dimension_next(last_dim) != (uint64_t*) 0) {
-		last_dim = get_dimension_next(last_dim);
-	}
-	set_dimension_next(last_dim, new_dim_entry);
-	set_dimension_size(new_dim_entry, size);
-	
-	return new_dim_entry;
 }
 
 uint64_t* create_dimension(uint64_t size) {

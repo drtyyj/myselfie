@@ -23,7 +23,7 @@ string_literal    = """ { printable_character } """ .
 
 identifier        = letter { letter | digit | "_" } .
 
-array_identifier  = letter { letter | digit | "_" } "[" identifier | integer_literal | shift_expression "]" .
+array_identifier  = letter { letter | digit | "_" } { "[" identifier | integer_literal | shift_expression "]" } .
 ```
 
 and:

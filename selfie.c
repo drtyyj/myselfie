@@ -577,6 +577,8 @@ void reset_symbol_tables();
 uint64_t hash(uint64_t* key);
 
 uint64_t* create_symbol_table_entry(uint64_t which, char* string, uint64_t line, uint64_t class, uint64_t type, uint64_t value, uint64_t address);
+uint64_t* create_symbol_table_dimension(uint64_t* entry, uint64_t size);
+uint64_t* create_dimension(uint64_t size);
 
 uint64_t* search_symbol_table(uint64_t* entry, char* string, uint64_t class);
 uint64_t* search_global_symbol_table(char* string, uint64_t class);
@@ -587,41 +589,54 @@ uint64_t is_library_procedure(char* name);
 uint64_t report_undefined_procedures();
 
 // symbol table entry:
-// +---+---------+
-// | 0 | next    | pointer to next entry
-// | 1 | string  | identifier string, big integer as string, string literal
-// | 2 | line#   | source line number
-// | 3 | class   | VARIABLE, BIGINT, STRING, PROCEDURE
-// | 4 | type    | UINT64_T, UINT64STAR_T, VOID_T, ARRAY_T
-// | 5 | value   | VARIABLE: initial value
-// | 6 | address | VARIABLE, BIGINT, STRING, ARRAY_T: offset, PROCEDURE: address
-// | 7 | scope   | REG_GP (global), REG_S0 (local)
-// | 8 | length  | ARRAY_T: length
-// +---+---------+
+// +---+----------+
+// | 0 | next     | pointer to next entry
+// | 1 | string   | identifier string, big integer as string, string literal
+// | 2 | line#    | source line number
+// | 3 | class    | VARIABLE, BIGINT, STRING, PROCEDURE
+// | 4 | type     | UINT64_T, UINT64STAR_T, VOID_T, ARRAY_T
+// | 5 | value    | VARIABLE: initial value
+// | 6 | address  | VARIABLE, BIGINT, STRING, ARRAY_T: offset, PROCEDURE: address
+// | 7 | scope    | REG_GP (global), REG_S0 (local)
+// | 8 | length   | ARRAY_T: total length
+// | 9 | dimension| ARRAY_T: dimensions
+// +---+----------+
 
 uint64_t* allocate_symbol_table_entry() {
-  return smalloc(2 * SIZEOFUINT64STAR + 7 * SIZEOFUINT64);
+  return smalloc(3 * SIZEOFUINT64STAR + 7 * SIZEOFUINT64);
 }
 
-uint64_t* get_next_entry(uint64_t* entry)  { return (uint64_t*) *entry; }
-char*     get_string(uint64_t* entry)      { return (char*)     *(entry + 1); }
-uint64_t  get_line_number(uint64_t* entry) { return             *(entry + 2); }
-uint64_t  get_class(uint64_t* entry)       { return             *(entry + 3); }
-uint64_t  get_type(uint64_t* entry)        { return             *(entry + 4); }
-uint64_t  get_value(uint64_t* entry)       { return             *(entry + 5); }
-uint64_t  get_address(uint64_t* entry)     { return             *(entry + 6); }
-uint64_t  get_scope(uint64_t* entry)       { return             *(entry + 7); }
-uint64_t  get_length(uint64_t* entry)	   { return				*(entry + 8); }
+uint64_t* allocate_symbol_table_dimension() {
+	return smalloc(SIZEOFUINT64STAR + SIZEOFUINT64);
+}
 
-void set_next_entry(uint64_t* entry, uint64_t* next) { *entry       = (uint64_t) next; }
-void set_string(uint64_t* entry, char* identifier)   { *(entry + 1) = (uint64_t) identifier; }
-void set_line_number(uint64_t* entry, uint64_t line) { *(entry + 2) = line; }
-void set_class(uint64_t* entry, uint64_t class)      { *(entry + 3) = class; }
-void set_type(uint64_t* entry, uint64_t type)        { *(entry + 4) = type; }
-void set_value(uint64_t* entry, uint64_t value)      { *(entry + 5) = value; }
-void set_address(uint64_t* entry, uint64_t address)  { *(entry + 6) = address; }
-void set_scope(uint64_t* entry, uint64_t scope)      { *(entry + 7) = scope; }
-void set_length(uint64_t* entry, uint64_t length)    { *(entry + 8) = length; }
+uint64_t* get_dimension_next(uint64_t* dim_entry) { return (uint64_t*) *dim_entry; }
+uint64_t  get_dimension_size(uint64_t* dim_entry) { return 		       *(dim_entry + 1); }
+
+void 	  set_dimension_next(uint64_t* dim_entry, uint64_t* next) { *dim_entry 		 = (uint64_t) next; }
+void 	  set_dimension_size(uint64_t* dim_entry, uint64_t size)  { *(dim_entry + 1) = size; }
+
+uint64_t* get_next_entry(uint64_t* entry)    { return (uint64_t*)   *entry; }
+char*     get_string(uint64_t* entry)        { return (char*)       *(entry + 1); }
+uint64_t  get_line_number(uint64_t* entry)   { return               *(entry + 2); }
+uint64_t  get_class(uint64_t* entry)         { return               *(entry + 3); }
+uint64_t  get_type(uint64_t* entry)          { return               *(entry + 4); }
+uint64_t  get_value(uint64_t* entry)         { return               *(entry + 5); }
+uint64_t  get_address(uint64_t* entry)       { return               *(entry + 6); }
+uint64_t  get_scope(uint64_t* entry)         { return               *(entry + 7); }
+uint64_t  get_length(uint64_t* entry)	     { return				*(entry + 8); }
+uint64_t* get_dimension(uint64_t* entry)     { return  (uint64_t*)  *(entry + 9); }
+
+void set_next_entry(uint64_t* entry, uint64_t* next)     { *entry       = (uint64_t) next; }
+void set_string(uint64_t* entry, char* identifier)       { *(entry + 1) = (uint64_t) identifier; }
+void set_line_number(uint64_t* entry, uint64_t line)     { *(entry + 2) = line; }
+void set_class(uint64_t* entry, uint64_t class)          { *(entry + 3) = class; }
+void set_type(uint64_t* entry, uint64_t type)            { *(entry + 4) = type; }
+void set_value(uint64_t* entry, uint64_t value)          { *(entry + 5) = value; }
+void set_address(uint64_t* entry, uint64_t address)      { *(entry + 6) = address; }
+void set_scope(uint64_t* entry, uint64_t scope)          { *(entry + 7) = scope; }
+void set_length(uint64_t* entry, uint64_t length)        { *(entry + 8) = length; }
+void set_dimension(uint64_t* entry, uint64_t* dimension) { *(entry + 9) = (uint64_t) dimension; }
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
@@ -742,6 +757,9 @@ uint64_t  compile_initialization(uint64_t type);
 void      compile_procedure(char* procedure, uint64_t type);
 void      compile_cstar();
 uint64_t  compile_array_selector();
+uint64_t* compile_array_dimensions();
+uint64_t  access_array_dimensions(uint64_t* entry);
+uint64_t  search_dimensions_length(uint64_t* dim_entry);
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -4220,6 +4238,30 @@ uint64_t* create_symbol_table_entry(uint64_t which_table, char* string, uint64_t
   return new_entry;
 }
 
+uint64_t* create_symbol_table_dimension(uint64_t* entry, uint64_t size) {
+	uint64_t* last_dim;
+	uint64_t* new_dim_entry;
+	
+	new_dim_entry = allocate_symbol_table_dimension();
+	last_dim = get_dimension(entry);
+	
+	while (get_dimension_next(last_dim) != (uint64_t*) 0) {
+		last_dim = get_dimension_next(last_dim);
+	}
+	set_dimension_next(last_dim, new_dim_entry);
+	set_dimension_size(new_dim_entry, size);
+	
+	return new_dim_entry;
+}
+
+uint64_t* create_dimension(uint64_t size) {
+	uint64_t* new_dim_entry;
+	
+	new_dim_entry = allocate_symbol_table_dimension();
+	set_dimension_size(new_dim_entry, size);
+	return new_dim_entry;
+}
+
 uint64_t* search_symbol_table(uint64_t* entry, char* string, uint64_t class) {
   number_of_searches = number_of_searches + 1;
 
@@ -4945,6 +4987,7 @@ uint64_t compile_factor() {
   uint64_t bitwise_not;
   char* variable_or_procedure_name;
   uint64_t length;
+  uint64_t* entry;
 
   // assert: n = allocated_temporaries
 
@@ -5037,7 +5080,8 @@ uint64_t compile_factor() {
       // for missing return expressions
       emit_addi(REG_A0, REG_ZR, 0);
 	} else if (symbol == SYM_LBRACKET) {
-		length = compile_array_selector();
+		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
+		length = access_array_dimensions(entry);
 		type = load_array_variable(variable_or_procedure_name, VARIABLE, length);
 	} else
 	  // variable access: identifier
@@ -5672,7 +5716,8 @@ void compile_statement() {
 	get_symbol();
 	
 	if (symbol == SYM_LBRACKET){
-		array_offset = compile_array_selector();
+		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
+		array_offset = access_array_dimensions(entry);
 		brackets_found = 1;
 	}
 	else{
@@ -5796,6 +5841,7 @@ uint64_t* compile_variable(uint64_t offset) {
   uint64_t type;
   uint64_t* entry;
   uint64_t length;
+  uint64_t* first_dim;
 
   type = compile_type();
 
@@ -5807,9 +5853,11 @@ uint64_t* compile_variable(uint64_t offset) {
 	
 	if (symbol == SYM_LBRACKET) {
 		set_type(entry, ARRAY_T);
-		length = compile_array_selector();
+		first_dim = compile_array_dimensions();
+		length = search_dimensions_length(first_dim);
 		set_length(entry, length);
 		set_address(entry, offset - length);
+		set_dimension(entry, first_dim);
 	}
   } else {
     syntax_error_symbol(SYM_IDENTIFIER);
@@ -6062,6 +6110,7 @@ void compile_cstar() {
   uint64_t initial_value;
   uint64_t* entry;
   uint64_t length;
+  uint64_t* first_dim;
 
   while (symbol != SYM_EOF) {
     while (look_for_type()) {
@@ -6112,10 +6161,13 @@ void compile_cstar() {
 		  
 		  if (symbol == SYM_LBRACKET) {
 			type = ARRAY_T;
-			length = compile_array_selector();
+			first_dim = compile_array_dimensions();
+			length = search_dimensions_length(first_dim);
 		  }
-		  else
+		  else {
 			length = 1;
+			first_dim = (uint64_t*) 0;
+		  }
 
           if (symbol == SYM_SEMICOLON) {
             // type identifier ";" ...
@@ -6142,6 +6194,7 @@ void compile_cstar() {
 			if (type == ARRAY_T){
 				entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
 				set_length(entry, length);
+				set_dimension(entry, first_dim);
 			}
           } else {
             // global variable already declared or defined
@@ -6172,6 +6225,67 @@ uint64_t compile_array_selector() {
 	}
 	get_symbol();
 	return value;
+}
+
+uint64_t* compile_array_dimensions() {
+	uint64_t* first_dim;
+	uint64_t* current_dim;
+	uint64_t* new_dim;
+	uint64_t size;
+	
+	size = compile_array_selector();
+	new_dim = create_dimension(size);
+	first_dim = new_dim;
+	current_dim = first_dim;
+	
+	while (symbol == SYM_LBRACKET) {
+		size = compile_array_selector();
+		new_dim = create_dimension(size);
+		set_dimension_next(current_dim, new_dim);
+		current_dim = new_dim;
+	}
+	
+	return first_dim;
+}
+
+uint64_t access_array_dimensions(uint64_t* entry) {
+	uint64_t total_offset;
+	uint64_t current_offset;
+	uint64_t* current_lower_dimension;
+	uint64_t* helper_dimension;
+	
+	total_offset = 0;
+	helper_dimension = get_dimension(entry);
+	
+	while (symbol == SYM_LBRACKET) {
+		current_offset = compile_array_selector();
+		helper_dimension = get_dimension_next(helper_dimension);
+		current_lower_dimension = helper_dimension;
+		while (current_lower_dimension != (uint64_t*) 0) {
+			current_offset = current_offset * get_dimension_size(current_lower_dimension);
+			current_lower_dimension = get_dimension_next(current_lower_dimension);
+		}
+		total_offset = total_offset + current_offset;
+	}
+	
+	return total_offset;
+}
+
+uint64_t search_dimensions_length(uint64_t* dim_entry) {
+	uint64_t* current_dim;
+	uint64_t size;
+	
+	current_dim = dim_entry;
+	size = get_dimension_size(current_dim);
+	
+	current_dim = get_dimension_next(current_dim);
+	
+	while (current_dim != (uint64_t*) 0) {
+		size = size * get_dimension_size(current_dim);
+		current_dim = get_dimension_next(current_dim);
+	}
+	
+	return size;
 }
 
 // -----------------------------------------------------------------

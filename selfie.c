@@ -471,6 +471,8 @@ uint64_t SYM_OR			  = 36; // |
 uint64_t SYM_NOT		  = 37; // ~
 uint64_t SYM_LBRACKET	  = 38; // [
 uint64_t SYM_RBRACKET	  = 39; // ]
+uint64_t SYM_STRUCT       = 40; // struct
+uint64_t SYM_STRUCT_ACCS  = 41; // ->
 
 // symbols for bootstrapping
 
@@ -515,7 +517,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_RBRACKET + 1) * SIZEOFUINT64STAR);
+  SYMBOLS = smalloc((SYM_STRUCT_ACCS + 1) * SIZEOFUINT64STAR);
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -553,6 +555,8 @@ void init_scanner () {
   *(SYMBOLS + SYM_NOT)			= (uint64_t) "~";
   *(SYMBOLS + SYM_LBRACKET)		= (uint64_t) "[";
   *(SYMBOLS + SYM_RBRACKET)		= (uint64_t) "]";
+  *(SYMBOLS + SYM_STRUCT)		= (uint64_t) "struct";
+  *(SYMBOLS + SYM_STRUCT_ACCS)  = (uint64_t) "->";
 
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
@@ -587,6 +591,7 @@ uint64_t hash(uint64_t* key);
 
 uint64_t* create_symbol_table_entry(uint64_t which, char* string, uint64_t line, uint64_t class, uint64_t type, uint64_t value, uint64_t address);
 uint64_t* create_dimension(uint64_t size);
+uint64_t* create_attribute(char* name, uint64_t type, uint64_t offset);
 
 uint64_t* search_symbol_table(uint64_t* entry, char* string, uint64_t class);
 uint64_t* search_global_symbol_table(char* string, uint64_t class);
@@ -601,21 +606,25 @@ uint64_t report_undefined_procedures();
 // | 0 | next     | pointer to next entry
 // | 1 | string   | identifier string, big integer as string, string literal
 // | 2 | line#    | source line number
-// | 3 | class    | VARIABLE, BIGINT, STRING, PROCEDURE
-// | 4 | type     | UINT64_T, UINT64STAR_T, VOID_T, ARRAY_T
+// | 3 | class    | VARIABLE, BIGINT, STRING, PROCEDURE, TYPE
+// | 4 | type     | UINT64_T, UINT64STAR_T, VOID_T, ARRAY_T;    diverse: STRUCT: 7 + Pointer to STRUCT_TYPE as integer
 // | 5 | value    | VARIABLE: initial value
-// | 6 | address  | VARIABLE, BIGINT, STRING, ARRAY_T: offset, PROCEDURE: address
+// | 6 | address  | VARIABLE, BIGINT, STRING, ARRAY_T, STRUCT_TYPE: offset, PROCEDURE, ELSE: address
 // | 7 | scope    | REG_GP (global), REG_S0 (local)
 // | 8 | length   | ARRAY_T: total length
-// | 9 | dimension| ARRAY_T: dimensions
+// | 9 | dimension| ARRAY_T: dimensions, STRUCT: Attributes
 // +---+----------+
 
 uint64_t* allocate_symbol_table_entry() {
-  return smalloc(3 * SIZEOFUINT64STAR + 7 * SIZEOFUINT64);
+    return smalloc(3 * SIZEOFUINT64STAR + 7 * SIZEOFUINT64);
 }
 
 uint64_t* allocate_symbol_table_dimension() {
 	return smalloc(SIZEOFUINT64STAR + SIZEOFUINT64);
+}
+
+uint64_t* allocate_symbol_table_struct_attribute() {
+	return smalloc(2 * SIZEOFUINT64STAR + 2 * SIZEOFUINT64);
 }
 
 uint64_t* get_dimension_next(uint64_t* dim_entry) { return (uint64_t*) *dim_entry; }
@@ -623,6 +632,16 @@ uint64_t  get_dimension_size(uint64_t* dim_entry) { return 		       *(dim_entry 
 
 void 	  set_dimension_next(uint64_t* dim_entry, uint64_t* next) { *dim_entry 		 = (uint64_t) next; }
 void 	  set_dimension_size(uint64_t* dim_entry, uint64_t size)  { *(dim_entry + 1) = size; }
+
+uint64_t* get_attribute_next(uint64_t* param_entry)   { return (uint64_t*) *param_entry; }
+char*     get_attribute_name(uint64_t* param_entry)   { return (char*)	   *(param_entry + 1); }
+uint64_t  get_attribute_type(uint64_t* param_entry)   { return             *(param_entry + 2); }
+uint64_t  get_attribute_offset(uint64_t* param_entry) { return			   *(param_entry + 3); }
+
+void  set_attribute_next(uint64_t* param_entry, uint64_t* next)    { *param_entry		 = (uint64_t) next; }
+void  set_attribute_name(uint64_t* param_entry, char* name)    	   { *(param_entry + 1)  = (uint64_t) name; }
+void  set_attribute_type(uint64_t* param_entry, uint64_t type)     { *(param_entry + 2)  = 			  type; }
+void  set_attribute_offset(uint64_t* param_entry, uint64_t offset) { *(param_entry + 3)  = 			  offset; }
 
 uint64_t* get_next_entry(uint64_t* entry)    { return (uint64_t*)   *entry; }
 char*     get_string(uint64_t* entry)        { return (char*)       *(entry + 1); }
@@ -654,6 +673,7 @@ uint64_t BIGINT    = 2;
 uint64_t STRING    = 3;
 uint64_t PROCEDURE = 4;
 uint64_t MACRO     = 5;
+uint64_t TYPE	   = 6;
 
 // types
 uint64_t UINT64_T     = 1;
@@ -661,6 +681,7 @@ uint64_t UINT64STAR_T = 2;
 uint64_t VOID_T       = 3;
 uint64_t UNDECLARED_T = 4;
 uint64_t ARRAY_T	  = 5;
+uint64_t STRUCT  	  = 6;
 
 // symbol tables
 uint64_t GLOBAL_TABLE  = 1;
@@ -768,6 +789,7 @@ uint64_t  compile_array_selector();
 uint64_t* compile_array_dimensions();
 uint64_t  access_array_dimensions(uint64_t* entry);
 uint64_t  search_dimensions_length(uint64_t* dim_entry);
+uint64_t* compile_struct_type_attributes_declaration();
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -3846,6 +3868,8 @@ uint64_t identifier_or_keyword() {
   else if (identifier_string_match(SYM_CONST))
     // selfie bootstraps const to uint64_t!
     return SYM_UINT64;
+  else if (identifier_string_match(SYM_STRUCT))
+	return SYM_UINT64;
   else
     return SYM_IDENTIFIER;
 }
@@ -4063,8 +4087,11 @@ void get_symbol() {
 
       } else if (character == CHAR_DASH) {
         get_character();
-
-        symbol = SYM_MINUS;
+		
+		  if (character == CHAR_GT)
+			  symbol = SYM_STRUCT_ACCS;
+		  else
+			  symbol = SYM_MINUS;
 
       } else if (character == CHAR_ASTERISK) {
         get_character();
@@ -4266,6 +4293,17 @@ uint64_t* create_dimension(uint64_t size) {
 	new_dim_entry = allocate_symbol_table_dimension();
 	set_dimension_size(new_dim_entry, size);
 	return new_dim_entry;
+}
+
+uint64_t* create_attribute(char* name, uint64_t type, uint64_t offset) {
+	uint64_t* new_attribute;
+	
+	new_attribute = allocate_symbol_table_struct_attribute();
+	set_attribute_name(new_attribute, name);
+	set_attribute_type(new_attribute, type);
+	set_attribute_offset(new_attribute, offset);
+	
+	return new_attribute;
 }
 
 uint64_t* search_symbol_table(uint64_t* entry, char* string, uint64_t class) {
@@ -5766,6 +5804,10 @@ uint64_t compile_type() {
   type = UINT64_T;
 
   if (symbol == SYM_UINT64) {
+	  
+	if (identifier_string_match(SYM_STRUCT)) {
+		type = STRUCT;
+	}
     get_symbol();
 
     while (symbol == SYM_UINT64)
@@ -5802,11 +5844,25 @@ uint64_t* compile_variable(uint64_t offset) {
   uint64_t* entry;
   uint64_t length;
   uint64_t* first_dim;
+  
+  first_dim = (uint64_t*) 0;
 
   type = compile_type();
 
   if (symbol == SYM_IDENTIFIER) {
     // TODO: check if identifier has already been declared
+	
+	if (type == STRUCT) {
+		entry = get_scoped_symbol_table_entry(identifier, TYPE);
+		type = 7 + (uint64_t) entry;
+		first_dim = get_dimension(entry);
+		get_symbol();
+		if (symbol != SYM_ASTERISK) {
+			syntax_error_unexpected();
+			exit(EXITCODE_PARSERERROR);
+		}
+		get_symbol();
+	}
     entry = create_symbol_table_entry(LOCAL_TABLE, identifier, line_number, VARIABLE, type, 0, offset);
 
 	get_symbol();
@@ -5817,6 +5873,10 @@ uint64_t* compile_variable(uint64_t offset) {
 		length = search_dimensions_length(first_dim);
 		set_length(entry, length);
 		set_address(entry, offset - length);
+		set_dimension(entry, first_dim);
+	}
+	else if(type == STRUCT) {
+		set_length(entry, 1);
 		set_dimension(entry, first_dim);
 	}
   } else {
@@ -6107,10 +6167,48 @@ void compile_cstar() {
 		  
           current_line_number = line_number;
 		  
+		  //Array declaration
 		  if (symbol == SYM_LBRACKET) {
 			type = ARRAY_T;
 			first_dim = compile_array_dimensions();
 			length = search_dimensions_length(first_dim);
+		  }
+		  
+		  //Struct declaration
+		  else if (type == STRUCT) {
+			  //Struct Variable declaration
+			  if(symbol == SYM_ASTERISK) {
+				  //offset 7 so type wont get accidentaly confused with any elementar type
+				  type = 7 + (uint64_t) search_global_symbol_table(variable_or_procedure_name, TYPE);
+				  get_symbol();
+				  if (type != 7) {
+					if (symbol == SYM_IDENTIFIER) {
+					  first_dim = get_dimension(search_global_symbol_table(variable_or_procedure_name, TYPE));
+				      length = 1;
+					  get_symbol();
+					} else {
+					  print_line_number("warning", current_line_number);
+					  printf("Struct Declaration not legal");
+					  exit(EXITCODE_PARSERERROR);
+					}
+				  } else {
+					  print_line_number("warning", current_line_number);
+					  printf("Struct Declaration not legal");
+					  exit(EXITCODE_PARSERERROR);
+				  }
+			  }
+			  //Struct Type Declaration
+			  else {
+				if (symbol == SYM_LBRACE) {
+					first_dim = compile_struct_type_attributes_declaration();
+					length = 1;
+					type = STRUCT;
+				} else {
+					print_line_number("warning", current_line_number);
+					printf("Struct Declaration not legal");
+					exit(EXITCODE_PARSERERROR);
+				}
+			  }
 		  }
 		  else {
 			length = 1;
@@ -6134,15 +6232,25 @@ void compile_cstar() {
           entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
 
           if (entry == (uint64_t*) 0) {
-            // allocate memory for global variable in data segment
-            data_size = data_size + length * WORDSIZE;
-
-            create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, VARIABLE, type, initial_value, -data_size);
 			
-			if (type == ARRAY_T){
-				entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
-				set_length(entry, length);
+			//Kein Struct Typ
+			if (type != STRUCT) {
+				// allocate memory for global variable in data segment
+				data_size = data_size + length * WORDSIZE;
+			
+				create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, VARIABLE, type, initial_value, -data_size);
+			
+				if (type == ARRAY_T){
+					entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
+					set_length(entry, length);
+					set_dimension(entry, first_dim);
+				}
+			}
+			else {
+				create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, TYPE, STRUCT, 0, -1);
+				entry = search_global_symbol_table(variable_or_procedure_name, TYPE);
 				set_dimension(entry, first_dim);
+				set_length(entry, 0);
 			}
           } else {
             // global variable already declared or defined
@@ -6234,6 +6342,80 @@ uint64_t search_dimensions_length(uint64_t* dim_entry) {
 	}
 	
 	return size;
+}
+
+uint64_t* compile_struct_type_attributes_declaration() {
+	uint64_t* first_attribute;
+	uint64_t* current_attribute;
+	uint64_t* helper_attribute;
+	char* name;
+	uint64_t type;
+	uint64_t offset;
+	
+	get_symbol();
+	
+	if (symbol == SYM_RBRACE) {
+		get_symbol();
+		first_attribute = (uint64_t*) 0;
+	}
+	else {
+	
+	  offset = 0;
+	  type = compile_type();
+	  name = identifier;
+	  
+	  if (type == STRUCT) {
+	    type = 7 - (uint64_t) get_scoped_symbol_table_entry(identifier, TYPE);
+	    get_symbol();
+	    get_symbol();
+	    name = identifier;
+	  }
+	  
+	  get_symbol();
+	
+	  first_attribute = create_attribute(name, type, offset);
+	  
+	  current_attribute = first_attribute;
+	
+	  offset = offset + 8;
+	  
+	  if (symbol == SYM_SEMICOLON)
+        get_symbol();
+	  else
+        syntax_error_symbol(SYM_SEMICOLON);
+	
+	  while (symbol == SYM_UINT64) {
+	    type = compile_type();
+	    name = identifier;
+	  
+	    if (type == STRUCT) {
+		  type = 7 + (uint64_t) get_scoped_symbol_table_entry(identifier, TYPE);
+		  get_symbol();
+		  get_symbol();
+		  name = identifier;
+	    }
+	  
+	    get_symbol();
+		
+		helper_attribute = create_attribute(name, type, offset);
+		set_attribute_next(current_attribute, helper_attribute);
+		current_attribute = helper_attribute;
+	  
+	    if (symbol == SYM_SEMICOLON)
+		    get_symbol();
+	    else
+		    syntax_error_symbol(SYM_SEMICOLON);
+	  }
+	  
+	  if (symbol == SYM_RBRACE)
+		  get_symbol();
+	  else {
+		  syntax_error_symbol(SYM_RBRACE);
+	      exit(EXITCODE_PARSERERROR);
+	  }
+		  
+	}
+	return first_attribute;
 }
 
 // -----------------------------------------------------------------

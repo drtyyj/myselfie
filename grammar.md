@@ -39,6 +39,7 @@ letter 		= "a" | ... | "z" | "A" | ... | "Z" .
 C\* Grammar:
 
 ```
+//grammar.md changes already implemented in previous assignment
 cstar             = { type ( identifier | array_identifier )
                       [ "=" [ cast ] [ "-" ] ( integer_literal | character_literal ) ] ";" |
                     ( "void" | type ) identifier procedure } | struct_def |.

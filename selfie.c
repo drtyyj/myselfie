@@ -790,6 +790,8 @@ uint64_t* compile_array_dimensions();
 uint64_t  access_array_dimensions(uint64_t* entry);
 uint64_t  search_dimensions_length(uint64_t* dim_entry);
 uint64_t* compile_struct_type_attributes_declaration();
+uint64_t* search_struct_attribute (uint64_t* entry, char* identifier);
+uint64_t* compile_struct_access(uint64_t* entry);
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -4088,8 +4090,10 @@ void get_symbol() {
       } else if (character == CHAR_DASH) {
         get_character();
 		
-		  if (character == CHAR_GT)
+		  if (character == CHAR_GT) {
 			  symbol = SYM_STRUCT_ACCS;
+			  get_character();
+		  }
 		  else
 			  symbol = SYM_MINUS;
 
@@ -5032,6 +5036,7 @@ uint64_t compile_factor() {
   char* variable_or_procedure_name;
   uint64_t length;
   uint64_t* entry;
+  uint64_t* struct_attribute;
 
   // assert: n = allocated_temporaries
 
@@ -5121,6 +5126,13 @@ uint64_t compile_factor() {
 		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
 		length = access_array_dimensions(entry);
 		type = load_array_variable(variable_or_procedure_name, VARIABLE, length);
+		
+	} else if (symbol == SYM_STRUCT_ACCS) {
+		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
+		struct_attribute = compile_struct_access(entry);
+		type = get_attribute_type(struct_attribute);
+		emit_load(current_temporary(), current_temporary(), 0);
+		
 	} else
 	  // variable access: identifier
 	  type = load_variable_or_big_int(variable_or_procedure_name, VARIABLE);
@@ -5655,6 +5667,7 @@ void compile_statement() {
   uint64_t offset;
   uint64_t array_offset;
   uint64_t brackets_found;
+  uint64_t* struct_attribute;
 
   // assert: allocated_temporaries == 0
 
@@ -5727,10 +5740,17 @@ void compile_statement() {
 		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
 		array_offset = access_array_dimensions(entry);
 		brackets_found = 1;
-	}
-	else{
+		struct_attribute = (uint64_t*) 0;
+	} else if (symbol == SYM_STRUCT_ACCS) {
+		entry = get_variable_or_big_int(variable_or_procedure_name, VARIABLE);
+		struct_attribute = compile_struct_access(entry);
+		
+		brackets_found = 0;
+		array_offset =  0;
+	} else{
 		array_offset = 0;
 		brackets_found = 0;
+		struct_attribute = (uint64_t*) 0;
 	}
 		
     // procedure call
@@ -5752,6 +5772,15 @@ void compile_statement() {
 
 	  if (brackets_found)
 		  ltype = UINT64_T;
+	  else if (ltype > 7) {
+		  if (struct_attribute != (uint64_t*) 0) {
+			ltype = get_attribute_type(struct_attribute);
+			if (ltype > 7) 
+				ltype = UINT64STAR_T;
+		  }
+		  else
+		    ltype = UINT64STAR_T;
+	  }
 	  
       get_symbol();
 
@@ -5759,20 +5788,26 @@ void compile_statement() {
 
       if (ltype != rtype)
         type_warning(ltype, rtype);
+	
+	  if (struct_attribute != (uint64_t*) 0) {
+		emit_store(previous_temporary(), 0, current_temporary());
+		tfree(2);
+	  }
+	  else {
+        offset = get_address(entry);
 
-      offset = get_address(entry);
+        if (is_signed_integer(offset, 12)) {
+          emit_store(get_scope(entry), offset + array_offset, current_temporary());
 
-      if (is_signed_integer(offset, 12)) {
-        emit_store(get_scope(entry), offset + array_offset, current_temporary());
+          tfree(1);
+        } else {
+          load_upper_base_address(entry);
 
-        tfree(1);
-      } else {
-        load_upper_base_address(entry);
+          emit_store(current_temporary(), sign_extend(get_bits(offset + array_offset, 0, 12), 12), previous_temporary());
 
-        emit_store(current_temporary(), sign_extend(get_bits(offset + array_offset, 0, 12), 12), previous_temporary());
-
-        tfree(2);
-      }
+          tfree(2);
+        }
+	  }
 
       number_of_assignments = number_of_assignments + 1;
 
@@ -6185,6 +6220,7 @@ void compile_cstar() {
 					if (symbol == SYM_IDENTIFIER) {
 					  first_dim = get_dimension(search_global_symbol_table(variable_or_procedure_name, TYPE));
 				      length = 1;
+					  variable_or_procedure_name = identifier;
 					  get_symbol();
 					} else {
 					  print_line_number("warning", current_line_number);
@@ -6240,17 +6276,16 @@ void compile_cstar() {
 			
 				create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, VARIABLE, type, initial_value, -data_size);
 			
-				if (type == ARRAY_T){
-					entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
-					set_length(entry, length);
-					set_dimension(entry, first_dim);
-				}
+				entry = search_global_symbol_table(variable_or_procedure_name, VARIABLE);
+				set_length(entry, length);
+				set_dimension(entry, first_dim);
+				
 			}
 			else {
 				create_symbol_table_entry(GLOBAL_TABLE, variable_or_procedure_name, current_line_number, TYPE, STRUCT, 0, -1);
 				entry = search_global_symbol_table(variable_or_procedure_name, TYPE);
 				set_dimension(entry, first_dim);
-				set_length(entry, 0);
+				set_length(entry, 1);
 			}
           } else {
             // global variable already declared or defined
@@ -6365,7 +6400,7 @@ uint64_t* compile_struct_type_attributes_declaration() {
 	  name = identifier;
 	  
 	  if (type == STRUCT) {
-	    type = 7 - (uint64_t) get_scoped_symbol_table_entry(identifier, TYPE);
+	    type = 7 + (uint64_t) get_scoped_symbol_table_entry(identifier, TYPE);
 	    get_symbol();
 	    get_symbol();
 	    name = identifier;
@@ -6416,6 +6451,57 @@ uint64_t* compile_struct_type_attributes_declaration() {
 		  
 	}
 	return first_attribute;
+}
+
+uint64_t* search_struct_attribute (uint64_t* entry, char* identifier) {
+	uint64_t* current_attribute;
+	
+	current_attribute = get_dimension(entry);
+	printf("0");
+	while (current_attribute != (uint64_t*) 0) {
+		printf("1");
+		if (string_compare(get_attribute_name(current_attribute), identifier)) {
+			printf("2");
+			return current_attribute;
+		}
+		current_attribute = get_attribute_next(current_attribute);
+	}
+	return (uint64_t*) 0;
+}
+
+uint64_t* compile_struct_access(uint64_t* entry) {
+	uint64_t* current_struct_attribute;
+	
+	talloc();
+	get_symbol();
+		
+	if (symbol == SYM_IDENTIFIER) {
+		current_struct_attribute = search_struct_attribute(entry, identifier);
+	}
+	else {
+		syntax_error_symbol(SYM_IDENTIFIER);
+		exit(EXITCODE_PARSERERROR);
+	}
+	emit_load(current_temporary(), get_scope(entry), get_address(entry));
+	emit_addi(current_temporary(), current_temporary(), get_attribute_offset(current_struct_attribute));
+		
+	get_symbol();
+		
+	while (symbol == SYM_STRUCT_ACCS) {
+		get_symbol();
+		if (symbol == SYM_IDENTIFIER) {
+			current_struct_attribute = search_struct_attribute(entry, identifier);
+		}
+		else {
+			syntax_error_symbol(SYM_IDENTIFIER);
+			exit(EXITCODE_PARSERERROR);
+		}
+		emit_load(current_temporary(), current_temporary(), 0);
+		emit_addi(current_temporary(), current_temporary(), get_attribute_offset(current_struct_attribute));
+			
+		get_symbol();
+	}
+	return current_struct_attribute;
 }
 
 // -----------------------------------------------------------------

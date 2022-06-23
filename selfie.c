@@ -473,6 +473,7 @@ uint64_t SYM_LBRACKET	  = 38; // [
 uint64_t SYM_RBRACKET	  = 39; // ]
 uint64_t SYM_STRUCT       = 40; // struct
 uint64_t SYM_STRUCT_ACCS  = 41; // ->
+uint64_t SYM_FOR	      = 42; // for
 
 // symbols for bootstrapping
 
@@ -517,7 +518,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_STRUCT_ACCS + 1) * SIZEOFUINT64STAR);
+  SYMBOLS = smalloc((SYM_FOR + 1) * SIZEOFUINT64STAR);
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -557,6 +558,7 @@ void init_scanner () {
   *(SYMBOLS + SYM_RBRACKET)		= (uint64_t) "]";
   *(SYMBOLS + SYM_STRUCT)		= (uint64_t) "struct";
   *(SYMBOLS + SYM_STRUCT_ACCS)  = (uint64_t) "->";
+  *(SYMBOLS + SYM_FOR)			= (uint64_t) "for";
 
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
@@ -777,6 +779,7 @@ uint64_t  compile_comp_expression();
 uint64_t  compile_and_expression();
 uint64_t  compile_expression();
 void      compile_while();
+void 	  compile_for();
 void      compile_if();
 void      compile_return();
 void      compile_statement();
@@ -807,6 +810,7 @@ uint64_t number_of_calls       = 0;
 uint64_t number_of_assignments = 0;
 uint64_t number_of_while       = 0;
 uint64_t number_of_if          = 0;
+uint64_t number_of_for		   = 0;
 uint64_t number_of_return      = 0;
 
 // ------------------------- INITIALIZATION ------------------------
@@ -816,6 +820,7 @@ void reset_parser() {
   number_of_assignments = 0;
   number_of_while       = 0;
   number_of_if          = 0;
+  number_of_for 		= 0;
   number_of_return      = 0;
 
   number_of_syntax_errors = 0;
@@ -3586,7 +3591,7 @@ uint64_t* smalloc_system(uint64_t size) {
   return memory;
 }
 
-uint64_t* zalloc(uint64_t size) {
+uint64_t* zalloc(uint64_t size) { 
   // internal use only!
 
   // this procedure is only executed at boot level 0;
@@ -3858,6 +3863,8 @@ uint64_t identifier_or_keyword() {
     return SYM_RETURN;
   else if (identifier_string_match(SYM_WHILE))
     return SYM_WHILE;
+  else if (identifier_string_match(SYM_FOR))
+	return SYM_FOR;
   else if (identifier_string_match(SYM_INT))
     // selfie bootstraps int to uint64_t!
     return SYM_UINT64;
@@ -4525,6 +4532,8 @@ uint64_t look_for_statement() {
     return 0;
   else if (symbol == SYM_WHILE)
     return 0;
+  else if (symbol == SYM_FOR)
+	return 0;
   else if (symbol == SYM_IF)
     return 0;
   else if (symbol == SYM_RETURN)
@@ -5547,6 +5556,84 @@ void compile_while() {
   number_of_while = number_of_while + 1;
 }
 
+void compile_for() {
+	uint64_t* run_variable;
+	uint64_t j1;
+	uint64_t j2;
+	uint64_t j3;
+    uint64_t branch_forward_to_end;
+
+    branch_forward_to_end = 0;
+	j1 = code_size;
+	j2 = code_size;
+	j3 = code_size;
+	
+	if (symbol == SYM_FOR) {
+		get_symbol();
+		get_required_symbol(SYM_LPARENTHESIS);
+		compile_statement();
+		
+		//saves position of loop condition
+		j1 = code_size;
+		compile_expression();
+		
+		//fixup later for branch
+		branch_forward_to_end = code_size;
+		emit_beq(current_temporary(), REG_ZR, 0);
+		tfree(1);
+		
+		//saves position of following jal for its fixup, since its a forward jump
+		//jal jumps forward to body to skip increment part of for-loop and go straight to the body
+		j3 = code_size;
+		emit_jal(REG_ZR, 0);
+		
+		//last jal jumps here to incement after loop-body was executed
+		j2 = code_size;
+		
+		if (symbol == SYM_SEMICOLON) {
+			get_symbol();
+			//--------------------------increment-part----------------------------------
+			run_variable = get_scoped_symbol_table_entry(identifier, VARIABLE);
+			get_symbol();
+			get_required_symbol(SYM_ASSIGN);
+			compile_expression();
+			emit_store(get_scope(run_variable), get_address(run_variable), current_temporary());
+			tfree(1);
+			//---------------------------------------------------------------------------
+			
+			//jumps backwards to loop condition after incement-part was executed
+			emit_jal(REG_ZR, j1 - code_size);
+			
+			//fixup for jal that skips increment-part, since the body follows next
+			fixup_relative_JFormat(j3, code_size);
+			
+			get_required_symbol(SYM_RPARENTHESIS);
+			if (symbol == SYM_LBRACE) {
+				get_symbol();
+				
+				while (is_not_rbrace_or_eof()) 
+					compile_statement();
+				
+				get_required_symbol(SYM_RBRACE);
+			} else
+				compile_statement();
+		} else
+			syntax_error_symbol(SYM_SEMICOLON);
+	} else
+		syntax_error_symbol(SYM_FOR);
+	//jumps to increment-part
+	emit_jal(REG_ZR, j2 - code_size);
+	
+	if (branch_forward_to_end != 0)
+    // first instruction after loop body will be generated here
+    // now we have the address for the conditional branch from above
+    fixup_relative_BFormat(branch_forward_to_end);
+
+  // assert: allocated_temporaries == 0
+
+  number_of_for = number_of_for + 1;
+}
+
 void compile_if() {
   uint64_t branch_forward_to_else_or_end;
   uint64_t jump_forward_to_end;
@@ -5818,6 +5905,10 @@ void compile_statement() {
   // while statement?
   else if (symbol == SYM_WHILE) {
     compile_while();
+  }
+  // for statement?
+  else if (symbol == SYM_FOR) {
+	compile_for();
   }
   // if statement?
   else if (symbol == SYM_IF) {
